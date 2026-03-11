@@ -1,0 +1,9 @@
+.vercel
+node_modules
+.next
+out
+dist
+coverage
+*.log
+.DS_Store
+*.tsbuildinfo
