@@ -14,6 +14,15 @@ type MountSceneRuntimeArgs = {
   screenGainNodeRef: MutableRefObject<GainNode | null>;
   oldGainNodeRef: MutableRefObject<GainNode | null>;
   oldBassFilterRef: MutableRefObject<BiquadFilterNode | null>;
+  interactionLockedRef: MutableRefObject<boolean>;
+  onRuntimeReady?: (runtime: SceneRuntime) => void;
+  onRuntimeDispose?: () => void;
+};
+
+export type SceneRuntime = {
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
 };
 
 export const mountSceneRuntime = ({
@@ -24,6 +33,9 @@ export const mountSceneRuntime = ({
   screenGainNodeRef,
   oldGainNodeRef,
   oldBassFilterRef,
+  interactionLockedRef,
+  onRuntimeReady,
+  onRuntimeDispose,
 }: MountSceneRuntimeArgs) => {
   const MODEL_Y_ROTATION = 0;
   const MODEL_Y_OFFSET = -0.24;
@@ -65,6 +77,7 @@ export const mountSceneRuntime = ({
   renderer.domElement.style.zIndex = "2";
   renderer.domElement.style.pointerEvents = "none";
   container.appendChild(renderer.domElement);
+  onRuntimeReady?.({ scene, camera, renderer });
 
   const cssRenderer = new CSS3DRenderer();
   cssRenderer.setSize(container.clientWidth, container.clientHeight);
@@ -105,7 +118,7 @@ export const mountSceneRuntime = ({
   let monitorFocusMix = 0;
 
   const loader = new GLTFLoader();
-  const modelPath = isMobileViewport ? "/models/cube.mobile.glb" : "/models/cube.glb";
+  const modelPath = isMobileViewport ? "/models/cube.mobile.glb" : "/models/table.glb";
   const enableCssScreenOverlay = true;
   const enableScreenEffects = !isMobileViewport;
   loader.load(
@@ -275,16 +288,21 @@ export const mountSceneRuntime = ({
       const render = () => {
         frameId = requestAnimationFrame(render);
         const delta = clock.getDelta();
+        const isInteractionLocked = interactionLockedRef.current;
         if (hasBegunRef.current && frontScreenMeshes.length > 0 && !isMobileViewport) {
           raycaster.setFromCamera(pointerNdc, camera);
           isHoveringFrontScreen = raycaster.intersectObjects(frontScreenMeshes, false).length > 0;
         } else {
           isHoveringFrontScreen = false;
         }
-        const shouldFocusMonitor = hasBegunRef.current && (isMobileViewport || isHoveringFrontScreen);
+        const shouldFocusMonitor =
+          !isInteractionLocked && hasBegunRef.current && (isMobileViewport || isHoveringFrontScreen);
 
         const mouseLookEnabled =
-          hasBegunRef.current && !isMobileViewport && performance.now() - beginTimestampRef.current >= 3000;
+          hasBegunRef.current &&
+          !isMobileViewport &&
+          !isInteractionLocked &&
+          performance.now() - beginTimestampRef.current >= 3000;
         const focusPointerScale = shouldFocusMonitor ? 0.18 : 1;
 
         if (mouseLookEnabled) {
@@ -325,14 +343,18 @@ export const mountSceneRuntime = ({
           baseZoom = THREE.MathUtils.lerp(responsiveSettleStartZoom, responsiveActiveZoom, settleEase);
         }
 
-        const desiredZoom = shouldFocusMonitor ? responsiveMonitorZoom : baseZoom;
+        const desiredZoom = isInteractionLocked
+          ? baseZoom
+          : shouldFocusMonitor
+            ? responsiveMonitorZoom
+            : baseZoom;
         const nextZoom = THREE.MathUtils.damp(camera.zoom, desiredZoom, 8, delta);
         if (Math.abs(nextZoom - camera.zoom) > 0.0001) {
           camera.zoom = nextZoom;
           camera.updateProjectionMatrix();
         }
 
-        const targetFocusMix = hasBegunRef.current && isHoveringFrontScreen ? 1 : 0;
+        const targetFocusMix = !isInteractionLocked && hasBegunRef.current && isHoveringFrontScreen ? 1 : 0;
         const focusLerp = 1 - Math.exp(-7 * delta);
         monitorFocusMix += (targetFocusMix - monitorFocusMix) * focusLerp;
 
@@ -420,5 +442,6 @@ export const mountSceneRuntime = ({
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
+    onRuntimeDispose?.();
   };
 };

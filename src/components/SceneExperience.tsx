@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import localFont from "next/font/local";
 import { BootOverlay } from "./scene/BootOverlay";
+import { DrawingCanvas } from "./scene/DrawingCanvas";
 import { MobileBeginSheet } from "./scene/MobileBeginSheet";
 import { asciiLogo, bootLines } from "./scene/bootContent";
-import { mountSceneRuntime } from "./scene/mountSceneRuntime";
+import { mountSceneRuntime, type SceneRuntime } from "./scene/mountSceneRuntime";
+import { useDrawingNode } from "./scene/useDrawingNode";
 import "./scene/sceneStyles.css";
+
+const ENABLE_DRAWING_FEATURE = true;
 
 const ibmPlexMono = localFont({
   src: "../app/fonts/IBMPlexMono-Medium.ttf",
@@ -25,6 +29,7 @@ export default function SceneExperience() {
   const oldGainNodeRef = useRef<GainNode | null>(null);
   const oldBassFilterRef = useRef<BiquadFilterNode | null>(null);
   const beginTimestampRef = useRef(0);
+  const interactionLockedRef = useRef(false);
 
   const [hasBegun, setHasBegun] = useState(false);
   const [uiPhase, setUiPhase] = useState<"boot" | "ready">("boot");
@@ -32,10 +37,26 @@ export default function SceneExperience() {
   const [isInteractionEnabled, setIsInteractionEnabled] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isMobileBeginSheetOpen, setIsMobileBeginSheetOpen] = useState(false);
+  const [runtime, setRuntime] = useState<SceneRuntime | null>(null);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(false);
+
+  const drawingNode = useDrawingNode(
+    runtime,
+    ENABLE_DRAWING_FEATURE && hasBegun && isDesktopViewport
+  );
 
   useEffect(() => {
     const mountTimer = window.setTimeout(() => setIsMounted(true), 0);
     return () => window.clearTimeout(mountTimer);
+  }, []);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setIsDesktopViewport(window.innerWidth > 900);
+    };
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
   }, []);
 
   useEffect(() => {
@@ -156,8 +177,15 @@ export default function SceneExperience() {
       screenGainNodeRef,
       oldGainNodeRef,
       oldBassFilterRef,
+      interactionLockedRef,
+      onRuntimeReady: setRuntime,
+      onRuntimeDispose: () => setRuntime(null),
     });
   }, [isMounted]);
+
+  useEffect(() => {
+    interactionLockedRef.current = drawingNode.isInteractionLocked;
+  }, [drawingNode.isInteractionLocked]);
 
   return (
     <main suppressHydrationWarning className="relative h-[100dvh] w-screen overflow-hidden bg-white">
@@ -201,6 +229,29 @@ export default function SceneExperience() {
           fontClassName={ibmPlexMono.className}
           fontVariable={ibmPlexMono.variable}
         />
+      )}
+
+      {ENABLE_DRAWING_FEATURE && (
+        <>
+          <DrawingCanvas
+            isVisible={drawingNode.isDrawingOverlayVisible}
+            onSave={drawingNode.onSaveDrawing}
+            onDismiss={drawingNode.onCancelDrawing}
+            canvasSize={drawingNode.drawingCanvasSize}
+          />
+
+          {drawingNode.showTooltip && drawingNode.tooltipPosition && (
+            <div
+              className="drawing-tooltip"
+              style={{
+                left: drawingNode.tooltipPosition.x,
+                top: drawingNode.tooltipPosition.y,
+              }}
+            >
+              Click to draw
+            </div>
+          )}
+        </>
       )}
     </main>
   );
