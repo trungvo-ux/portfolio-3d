@@ -298,23 +298,31 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
-  padding: 0;
+  padding: 24px;
   overflow: auto;
 }
 
+.drawing-workspace-stage {
+  flex: 0 0 auto;
+  width: var(--drawing-workspace-width);
+  height: var(--drawing-workspace-height);
+}
+
 .drawing-workspace {
-  width: 736px;
-  height: 844px;
+  width: var(--drawing-workspace-width);
+  height: var(--drawing-workspace-height);
   display: flex;
   align-items: stretch;
   gap: 12px;
   padding: 0;
   flex: 0 0 auto;
+  transform: scale(var(--drawing-workspace-scale, 1));
+  transform-origin: top left;
 }
 
 .drawing-workspace__canvas {
-  width: 844px;
-  height: 595px;
+  width: var(--drawing-canvas-width);
+  height: var(--drawing-canvas-height);
   background: #ffffff;
   border: none;
   cursor: crosshair;
@@ -323,8 +331,8 @@
 }
 
 .drawing-workspace__paper {
-  width: 595px;
-  height: 844px;
+  width: var(--drawing-paper-width);
+  height: var(--drawing-paper-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -519,19 +527,5 @@
 @media (max-width: 800px) {
   .drawing-modal-overlay {
     padding: 10px;
-  }
-
-  .drawing-workspace {
-    width: 100%;
-    height: auto;
-    min-height: 640px;
-    gap: 10px;
-  }
-
-  .drawing-workspace__canvas {
-    width: auto;
-    flex: 1 1 auto;
-    aspect-ratio: 595 / 844;
-    height: auto;
   }
 }

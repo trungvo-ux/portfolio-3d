@@ -11,6 +11,12 @@ import { useDrawingNode } from "./scene/useDrawingNode";
 import "./scene/sceneStyles.css";
 
 const ENABLE_DRAWING_FEATURE = true;
+const BOOT_OVERLAY_DURATION_MS = 2000;
+const BOOT_READY_HOLD_MS = 700;
+const BOOT_LINE_INTERVAL_MS = Math.max(
+  1,
+  Math.floor((BOOT_OVERLAY_DURATION_MS - BOOT_READY_HOLD_MS) / bootLines.length)
+);
 
 const ibmPlexMono = localFont({
   src: "../app/fonts/IBMPlexMono-Medium.ttf",
@@ -60,7 +66,7 @@ export default function SceneExperience() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsInteractionEnabled(true), 5000);
+    const timer = window.setTimeout(() => setIsInteractionEnabled(true), BOOT_OVERLAY_DURATION_MS);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -81,9 +87,9 @@ export default function SceneExperience() {
         window.clearInterval(lineTimer);
         revealCompleteTimeout = window.setTimeout(() => {
           setUiPhase("ready");
-        }, 2000);
+        }, BOOT_READY_HOLD_MS);
       }
-    }, 380);
+    }, BOOT_LINE_INTERVAL_MS);
 
     return () => {
       window.clearInterval(lineTimer);

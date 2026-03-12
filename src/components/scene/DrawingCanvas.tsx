@@ -13,6 +13,9 @@ const CANVAS_WIDTH = 595;
 const CANVAS_HEIGHT = 844;
 const MIN_BRUSH = 1;
 const MAX_BRUSH = 30;
+const DRAWING_SIDEBAR_WIDTH = 129;
+const DRAWING_WORKSPACE_GAP = 12;
+const DRAWING_VIEWPORT_PADDING = 24;
 
 export function DrawingCanvas({ isVisible, onSave, onDismiss, canvasSize }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -22,12 +25,42 @@ export function DrawingCanvas({ isVisible, onSave, onDismiss, canvasSize }: Draw
   const [brushColor, setBrushColor] = useState("#111111");
   const [brushSize, setBrushSize] = useState(6);
   const [isEraser, setIsEraser] = useState(false);
+  const [workspaceScale, setWorkspaceScale] = useState(1);
   const hasDrawnRef = useRef(false);
   const colorInputRef = useRef<HTMLInputElement | null>(null);
   const resolvedCanvasSize = {
     width: Math.max(1, Math.round(canvasSize?.width ?? CANVAS_WIDTH)),
     height: Math.max(1, Math.round(canvasSize?.height ?? CANVAS_HEIGHT)),
   };
+  const workspaceWidth = resolvedCanvasSize.width + DRAWING_SIDEBAR_WIDTH + DRAWING_WORKSPACE_GAP;
+  const workspaceHeight = resolvedCanvasSize.height;
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const updateWorkspaceScale = () => {
+      const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const availableWidth = Math.max(1, viewportWidth - DRAWING_VIEWPORT_PADDING * 2);
+      const availableHeight = Math.max(1, viewportHeight - DRAWING_VIEWPORT_PADDING * 2);
+      const nextScale = Math.min(
+        1,
+        availableWidth / workspaceWidth,
+        availableHeight / workspaceHeight
+      );
+
+      setWorkspaceScale(nextScale);
+    };
+
+    updateWorkspaceScale();
+    window.addEventListener("resize", updateWorkspaceScale);
+    window.visualViewport?.addEventListener("resize", updateWorkspaceScale);
+
+    return () => {
+      window.removeEventListener("resize", updateWorkspaceScale);
+      window.visualViewport?.removeEventListener("resize", updateWorkspaceScale);
+    };
+  }, [isVisible, workspaceHeight, workspaceWidth]);
 
   useEffect(() => {
     if (!isVisible || !canvasRef.current) return;
@@ -139,86 +172,99 @@ export function DrawingCanvas({ isVisible, onSave, onDismiss, canvasSize }: Draw
   };
 
   const brushProgress = ((brushSize - MIN_BRUSH) / (MAX_BRUSH - MIN_BRUSH)) * 100;
+  const workspaceStyle = {
+    "--drawing-paper-width": `${resolvedCanvasSize.width}px`,
+    "--drawing-paper-height": `${resolvedCanvasSize.height}px`,
+    "--drawing-canvas-width": `${resolvedCanvasSize.height}px`,
+    "--drawing-canvas-height": `${resolvedCanvasSize.width}px`,
+    "--drawing-workspace-width": `${workspaceWidth}px`,
+    "--drawing-workspace-height": `${workspaceHeight}px`,
+    "--drawing-workspace-scale": workspaceScale,
+    width: `${workspaceWidth * workspaceScale}px`,
+    height: `${workspaceHeight * workspaceScale}px`,
+  } as CSSProperties;
 
   return (
     <div className="drawing-modal-overlay" onClick={onDismiss}>
-      <div className="drawing-workspace" onClick={(event) => event.stopPropagation()}>
-        <div className="drawing-workspace__paper">
-          <canvas
-            ref={canvasRef}
-            width={resolvedCanvasSize.width}
-            height={resolvedCanvasSize.height}
-            className="drawing-workspace__canvas drawing-workspace__canvas--rotated"
-            onPointerDown={(event) => {
-              event.currentTarget.setPointerCapture(event.pointerId);
-              beginStroke(event.clientX, event.clientY);
-            }}
-            onPointerMove={(event) => {
-              drawStroke(event.clientX, event.clientY);
-            }}
-            onPointerUp={endStroke}
-            onPointerCancel={endStroke}
-            onPointerLeave={endStroke}
-          />
+      <div className="drawing-workspace-stage" style={workspaceStyle} onClick={(event) => event.stopPropagation()}>
+        <div className="drawing-workspace">
+          <div className="drawing-workspace__paper">
+            <canvas
+              ref={canvasRef}
+              width={resolvedCanvasSize.width}
+              height={resolvedCanvasSize.height}
+              className="drawing-workspace__canvas drawing-workspace__canvas--rotated"
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                beginStroke(event.clientX, event.clientY);
+              }}
+              onPointerMove={(event) => {
+                drawStroke(event.clientX, event.clientY);
+              }}
+              onPointerUp={endStroke}
+              onPointerCancel={endStroke}
+              onPointerLeave={endStroke}
+            />
+          </div>
+
+          <aside className="drawing-sidebar">
+            <div className="drawing-sidebar__panel drawing-sidebar__panel--tools">
+              <button
+                type="button"
+                className={`drawing-sheet__pill ${isEraser ? "drawing-sheet__pill--erase-selected" : ""}`}
+                onClick={() => setIsEraser(true)}
+              >
+                Erase
+              </button>
+              <button type="button" className="drawing-sheet__pill" onClick={clearCanvas}>
+                Clear
+              </button>
+              <button
+                type="button"
+                className={`drawing-sheet__pill drawing-sheet__pill--pencil ${!isEraser ? "drawing-sheet__pill--selected" : ""}`}
+                onClick={() => setIsEraser(false)}
+              >
+                Pencil
+              </button>
+
+              <label className="drawing-sidebar__sliderWrap">
+                <input
+                  className="drawing-sidebar__slider"
+                  type="range"
+                  min={MIN_BRUSH}
+                  max={MAX_BRUSH}
+                  value={brushSize}
+                  onChange={(event) => setBrushSize(Number(event.target.value))}
+                  style={{ "--slider-fill": `${brushProgress}%` } as CSSProperties}
+                />
+              </label>
+
+              <button
+                type="button"
+                className="drawing-sheet__color-dot"
+                aria-label="Pick color"
+                onClick={() => colorInputRef.current?.click()}
+                style={{ backgroundColor: brushColor }}
+              >
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={brushColor}
+                  onChange={(event) => setBrushColor(event.target.value)}
+                />
+              </button>
+            </div>
+
+            <div className="drawing-sidebar__panel drawing-sidebar__panel--actions">
+              <button type="button" className="drawing-sheet__done" onClick={saveDrawing}>
+                Done
+              </button>
+              <button type="button" className="drawing-sheet__cancel" onClick={onDismiss}>
+                Cancel
+              </button>
+            </div>
+          </aside>
         </div>
-
-        <aside className="drawing-sidebar">
-          <div className="drawing-sidebar__panel drawing-sidebar__panel--tools">
-            <button
-              type="button"
-              className={`drawing-sheet__pill ${isEraser ? "drawing-sheet__pill--erase-selected" : ""}`}
-              onClick={() => setIsEraser(true)}
-            >
-              Erase
-            </button>
-            <button type="button" className="drawing-sheet__pill" onClick={clearCanvas}>
-              Clear
-            </button>
-            <button
-              type="button"
-              className={`drawing-sheet__pill drawing-sheet__pill--pencil ${!isEraser ? "drawing-sheet__pill--selected" : ""}`}
-              onClick={() => setIsEraser(false)}
-            >
-              Pencil
-            </button>
-
-            <label className="drawing-sidebar__sliderWrap">
-              <input
-                className="drawing-sidebar__slider"
-                type="range"
-                min={MIN_BRUSH}
-                max={MAX_BRUSH}
-                value={brushSize}
-                onChange={(event) => setBrushSize(Number(event.target.value))}
-                style={{ "--slider-fill": `${brushProgress}%` } as CSSProperties}
-              />
-            </label>
-
-            <button
-              type="button"
-              className="drawing-sheet__color-dot"
-              aria-label="Pick color"
-              onClick={() => colorInputRef.current?.click()}
-              style={{ backgroundColor: brushColor }}
-            >
-              <input
-                ref={colorInputRef}
-                type="color"
-                value={brushColor}
-                onChange={(event) => setBrushColor(event.target.value)}
-              />
-            </button>
-          </div>
-
-          <div className="drawing-sidebar__panel drawing-sidebar__panel--actions">
-            <button type="button" className="drawing-sheet__done" onClick={saveDrawing}>
-              Done
-            </button>
-            <button type="button" className="drawing-sheet__cancel" onClick={onDismiss}>
-              Cancel
-            </button>
-          </div>
-        </aside>
       </div>
     </div>
   );

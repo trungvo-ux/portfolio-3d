@@ -261,15 +261,24 @@ export function useDrawingNode(runtime: SceneRuntime | null, enabled: boolean) {
           : null;
 
       texture.colorSpace = THREE.SRGBColorSpace;
-      texture.flipY = sourceMap?.flipY ?? false;
-      texture.rotation = sourceMap?.rotation ?? 0;
-      texture.center.copy(sourceMap?.center ?? new THREE.Vector2(0, 0));
-      texture.offset.copy(sourceMap?.offset ?? new THREE.Vector2(0, 0));
-      texture.repeat.copy(sourceMap?.repeat ?? new THREE.Vector2(1, 1));
+      texture.flipY = false;
+      texture.rotation = 0;
+      texture.center.set(0, 0);
+      texture.offset.set(0, 0);
+      texture.repeat.set(1, 1);
       texture.wrapS = THREE.ClampToEdgeWrapping;
       texture.wrapT = THREE.ClampToEdgeWrapping;
       texture.anisotropy = runtime.renderer.capabilities.getMaxAnisotropy();
       texture.needsUpdate = true;
+
+      if (sourceMap) {
+        console.log("Previous map transform:", {
+          rotation: sourceMap.rotation,
+          offset: { x: sourceMap.offset.x, y: sourceMap.offset.y },
+          repeat: { x: sourceMap.repeat.x, y: sourceMap.repeat.y },
+          flipY: sourceMap.flipY,
+        });
+      }
 
       const applyTextureToMaterial = (material: THREE.Material) => {
         if (material instanceof THREE.MeshStandardMaterial) {
